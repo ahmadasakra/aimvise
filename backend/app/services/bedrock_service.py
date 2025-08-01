@@ -298,7 +298,9 @@ WICHTIG: Antworte komplett auf DEUTSCH. Alle Beschreibungen, Empfehlungen und An
                                               repo_info: Dict[str, Any], 
                                               code_files: Dict[str, str],
                                               static_results: Dict[str, Any]) -> Dict[str, Any]:
-        """Create comprehensive fallback analysis when AI fails"""
+        """DISABLED: No fallback analysis - system requires real data only"""
+        # Return error instead of mock data to force real analysis
+        return {"error": "Analysis failed and no fallback data allowed - real metrics required"}
         
         # Analyze code files to determine patterns
         languages = repo_info.get('languages', [])

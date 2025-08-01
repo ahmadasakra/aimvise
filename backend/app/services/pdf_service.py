@@ -410,7 +410,11 @@ class PDFService:
         
         # Security metrics (real from Bandit)
         security_vulns = technical_metrics.get('security_vulnerabilities', 0)
-        vulnerable_deps = technical_metrics.get('vulnerable_dependencies', 0)
+        
+        # Handle vulnerable_dependencies - can be count (int) or list
+        vulnerable_deps_raw = technical_metrics.get('vulnerable_dependencies', 0)
+        vulnerable_deps = len(vulnerable_deps_raw) if isinstance(vulnerable_deps_raw, list) else (vulnerable_deps_raw or 0)
+        
         outdated_deps = technical_metrics.get('dependencies_outdated', 0)
         
         # Architecture insights (real from AI analysis)
@@ -1164,27 +1168,305 @@ class PDFService:
         return recommendations_text
 
     def _add_architecture_analysis(self, story, analysis_result):
-        """Add architecture analysis section"""
+        """Add comprehensive enterprise architecture analysis section"""
         from reportlab.platypus import PageBreak
         
-        story.append(Paragraph("6. Architektur-Analyse", self.styles['CustomHeading1']))
+        story.append(Paragraph("6. 🏗️ Enterprise Architektur-Analyse", self.styles['CustomHeading1']))
         story.append(Spacer(1, 12))
         
-        ai_insights = analysis_result.get('ai_insights', {})
-        architecture_pattern = ai_insights.get('architecture_pattern', 'Not determined')
+        # Get architecture metrics from enhanced analyzer
+        architecture_metrics = analysis_result.get('architecture', {})
+        maturity = architecture_metrics.get('architecture_maturity', {})
         
-        arch_text = f"""
-        <b>Detected Architecture Pattern:</b> {architecture_pattern}<br/><br/>
+        # === ARCHITECTURE MATURITY OVERVIEW ===
+        story.append(Paragraph("📊 Architektur-Reife Bewertung", self.styles['CustomHeading1']))
+        story.append(Spacer(1, 8))
         
-        <b>Architecture Quality Assessment:</b><br/>
-        {self._generate_architecture_assessment(analysis_result)}<br/><br/>
+        overall_score = maturity.get('overall_score', 0)
+        maturity_level = maturity.get('level', '🚧 BASIC (Needs Improvement)')
         
-        <b>Structural Analysis:</b><br/>
-        {self._generate_structural_analysis(analysis_result)}
+        maturity_text = f"""
+        <b>🎯 Gesamtbewertung:</b> {overall_score:.1f}/10.0<br/>
+        <b>📈 Reifegrad:</b> {maturity_level}<br/><br/>
+        
+        <b>📋 Detaillierte Bewertung:</b><br/>
         """
         
-        story.append(Paragraph(arch_text, self.styles['Normal']))
+        # Add breakdown scores
+        breakdown = maturity.get('breakdown', {})
+        for category, score in breakdown.items():
+            category_name = {
+                'design_patterns': '🎨 Design Patterns',
+                'solid_principles': '🔧 SOLID Prinzipien', 
+                'clean_architecture': '🏛️ Clean Architecture',
+                'coupling_quality': '🔗 Kopplungs-Qualität',
+                'api_design': '🌐 API Design',
+                'ddd_implementation': '🏢 Domain-Driven Design'
+            }.get(category, category)
+            
+            maturity_text += f"• {category_name}: {score:.1f}/10<br/>"
+        
+        story.append(Paragraph(maturity_text, self.styles['Normal']))
+        story.append(Spacer(1, 15))
+        
+        # === DESIGN PATTERNS ANALYSIS ===
+        self._add_design_patterns_section(story, architecture_metrics)
+        
+        # === SOLID PRINCIPLES ANALYSIS ===
+        self._add_solid_principles_section(story, architecture_metrics)
+        
+        # === COUPLING & COHESION METRICS ===
+        self._add_coupling_cohesion_section(story, architecture_metrics)
+        
+        # === TECHNICAL DEBT & REFACTORING ===
+        self._add_technical_debt_section(story, architecture_metrics)
+        
         story.append(PageBreak())
+        
+    def _add_design_patterns_section(self, story, architecture_metrics):
+        """Add design patterns analysis section with concrete examples"""
+        design_patterns = architecture_metrics.get('design_patterns_analysis', {})
+        detected_patterns = design_patterns.get('detected_patterns', {})
+        pattern_score = design_patterns.get('score', 0)
+        
+        story.append(Paragraph("🎨 Design Pattern Implementierung", self.styles['CustomHeading1']))
+        story.append(Spacer(1, 8))
+        
+        patterns_text = f"""
+        <b>Pattern Score:</b> {pattern_score:.1f}/10<br/>
+        <b>Pattern Diversität:</b> {design_patterns.get('pattern_diversity', 0)} verschiedene Patterns<br/>
+        <b>Implementierungs-Reife:</b> {design_patterns.get('implementation_maturity', 'Intermediate')}<br/><br/>
+        """
+        
+        # Analyze each pattern category with examples
+        pattern_categories = [
+            ('creational', '🔧 Gefundene Creational Patterns', 'Objekt-Erstellung und Instanziierung'),
+            ('structural', '🏗️ Gefundene Structural Patterns', 'Klassen- und Objekt-Komposition'),
+            ('behavioral', '⚡ Gefundene Behavioral Patterns', 'Kommunikation zwischen Objekten')
+        ]
+        
+        for category_key, category_title, category_desc in pattern_categories:
+            patterns_text += f"<b>{category_title}:</b><br/>"
+            patterns_text += f"<i>{category_desc}</i><br/>"
+            
+            category_patterns = detected_patterns.get(category_key, {})
+            if category_patterns:
+                for pattern_name, details in category_patterns.items():
+                    confidence = details.get('confidence', 0)
+                    matches = details.get('matches', [])
+                    quality = details.get('implementation_quality', 'Good')
+                    
+                    patterns_text += f"• <b>{pattern_name.replace('_', ' ').title()}:</b> "
+                    patterns_text += f"{confidence:.1f} Konfidenz, Qualität: {quality}<br/>"
+                    
+                    # Show specific file examples
+                    if matches:
+                        patterns_text += f"  📍 <b>Gefunden in:</b><br/>"
+                        for match in matches[:2]:  # Show top 2 matches
+                            file_name = match.get('file', 'Unknown')
+                            line = match.get('line', 0)
+                            code_snippet = match.get('match', '')[:60] + '...' if len(match.get('match', '')) > 60 else match.get('match', '')
+                            patterns_text += f"    • {file_name}:{line} - <font size='8'>{code_snippet}</font><br/>"
+                        if len(matches) > 2:
+                            patterns_text += f"    • ... und {len(matches) - 2} weitere Vorkommen<br/>"
+                    patterns_text += "<br/>"
+            else:
+                patterns_text += "• Keine Patterns in dieser Kategorie gefunden<br/><br/>"
+        
+        # Add pattern recommendations
+        if pattern_score < 6:
+            patterns_text += """
+            <b>💡 Pattern-Implementierungs-Empfehlungen:</b><br/>
+            • <b>Factory Pattern:</b> Für komplexe Objekt-Erstellung implementieren<br/>
+            • <b>Strategy Pattern:</b> Für austauschbare Algorithmen verwenden<br/>
+            • <b>Observer Pattern:</b> Für Event-basierte Kommunikation implementieren<br/>
+            • <b>Repository Pattern:</b> Für Datenbank-Abstraktion einführen<br/><br/>
+            
+            <b>🎯 Nutzen:</b> Verbesserte Wartbarkeit, Testbarkeit und Erweiterbarkeit<br/>
+            <b>📈 Erwartete Verbesserung:</b> +3-4 Pattern Score Punkte
+            """
+        
+        story.append(Paragraph(patterns_text, self.styles['Normal']))
+        story.append(Spacer(1, 15))
+    
+    def _add_solid_principles_section(self, story, architecture_metrics):
+        """Add SOLID principles analysis section with concrete examples"""
+        solid_analysis = architecture_metrics.get('solid_principles_analysis', {})
+        principles = solid_analysis.get('principles', {})
+        solid_score = solid_analysis.get('score', 0)
+        
+        story.append(Paragraph("🔧 SOLID Prinzipien Bewertung", self.styles['CustomHeading1']))
+        story.append(Spacer(1, 8))
+        
+        solid_text = f"""
+        <b>SOLID Score:</b> {solid_score:.1f}/10<br/>
+        <b>Gesamte Verstöße:</b> {solid_analysis.get('total_violations', 0)}<br/>
+        <b>Gute Praktiken:</b> {solid_analysis.get('total_good_practices', 0)}<br/><br/>
+        
+        <b>📋 Detaillierte SOLID Bewertung:</b><br/>
+        """
+        
+        principle_names = {
+            'single_responsibility': 'S - Single Responsibility Principle',
+            'open_closed': 'O - Open/Closed Principle',
+            'liskov_substitution': 'L - Liskov Substitution Principle',
+            'interface_segregation': 'I - Interface Segregation Principle',
+            'dependency_inversion': 'D - Dependency Inversion Principle'
+        }
+        
+        for principle_key, principle_data in principles.items():
+            principle_name = principle_names.get(principle_key, principle_key)
+            score = principle_data.get('score', 0)
+            violations = principle_data.get('violations', [])
+            good_practices = principle_data.get('good_practices', [])
+            
+            solid_text += f"• <b>{principle_name}:</b> {score:.1f}/10 "
+            solid_text += f"({len(violations)} Verstöße, {len(good_practices)} gute Praktiken)<br/>"
+            
+            # Add specific violation examples
+            if violations:
+                solid_text += f"  📍 <b>Gefundene Verstöße:</b><br/>"
+                for violation in violations[:3]:  # Show top 3 violations
+                    file_name = violation.get('file', 'Unknown')
+                    line = violation.get('line', 0)
+                    code_snippet = violation.get('pattern', '')[:50] + '...' if len(violation.get('pattern', '')) > 50 else violation.get('pattern', '')
+                    solid_text += f"    • {file_name}:{line} - {code_snippet}<br/>"
+                if len(violations) > 3:
+                    solid_text += f"    • ... und {len(violations) - 3} weitere Verstöße<br/>"
+            
+            # Add good practice examples
+            if good_practices:
+                solid_text += f"  ✅ <b>Gute Praktiken gefunden:</b><br/>"
+                for practice in good_practices[:2]:  # Show top 2 good practices
+                    file_name = practice.get('file', 'Unknown')
+                    line = practice.get('line', 0)
+                    code_snippet = practice.get('pattern', '')[:50] + '...' if len(practice.get('pattern', '')) > 50 else practice.get('pattern', '')
+                    solid_text += f"    • {file_name}:{line} - {code_snippet}<br/>"
+            
+            solid_text += "<br/>"
+        
+        story.append(Paragraph(solid_text, self.styles['Normal']))
+        story.append(Spacer(1, 15))
+        
+        # Add SOLID recommendations if score is low
+        if solid_score < 7:
+            story.append(Paragraph("💡 SOLID Verbesserungs-Empfehlungen", self.styles['CustomHeading1']))
+            story.append(Spacer(1, 8))
+            
+            recommendations_text = """
+            <b>📋 Prioritäre Maßnahmen:</b><br/>
+            • <b>Single Responsibility:</b> Große Klassen in kleinere, fokussierte Klassen aufteilen<br/>
+            • <b>Open/Closed:</b> Interfaces und abstrakte Klassen für Erweiterbarkeit implementieren<br/>
+            • <b>Dependency Inversion:</b> Direkte Abhängigkeiten durch Dependency Injection ersetzen<br/>
+            • <b>Interface Segregation:</b> Große Interfaces in spezifische, kleinere Interfaces aufteilen<br/><br/>
+            
+            <b>🎯 Geschätzte Verbesserungszeit:</b> 2-3 Entwicklungssprints<br/>
+            <b>📈 Erwartete Qualitätssteigerung:</b> +2-3 SOLID Score Punkte
+            """
+            
+            story.append(Paragraph(recommendations_text, self.styles['Normal']))
+            story.append(Spacer(1, 15))
+    
+    def _add_coupling_cohesion_section(self, story, architecture_metrics):
+        """Add coupling and cohesion metrics section with concrete examples"""
+        coupling_metrics = architecture_metrics.get('coupling_cohesion_metrics', {})
+        coupling_score = coupling_metrics.get('score', 0)
+        avg_instability = coupling_metrics.get('average_instability', 0)
+        high_coupling_classes = coupling_metrics.get('high_coupling_classes', [])
+        coupling_details = coupling_metrics.get('coupling_details', {})
+        
+        story.append(Paragraph("🔗 Kopplungs- und Kohäsions-Metriken", self.styles['CustomHeading1']))
+        story.append(Spacer(1, 8))
+        
+        coupling_text = f"""
+        <b>Kopplungs-Qualität Score:</b> {coupling_score:.1f}/10<br/>
+        <b>Durchschnittliche Instabilität:</b> {avg_instability:.3f}<br/>
+        <b>Hoch gekoppelte Klassen:</b> {len(high_coupling_classes)}<br/>
+        <b>Analysierte Klassen:</b> {len(coupling_details)}<br/><br/>
+        
+        <b>📊 Instabilitäts-Interpretation:</b><br/>
+        • <b>0.0 - 0.3:</b> Stabil - schwer zu ändern, zentrale Komponenten<br/>
+        • <b>0.3 - 0.7:</b> Ausgewogen - idealer Bereich für die meisten Klassen<br/>
+        • <b>0.7 - 1.0:</b> Instabil - leicht zu ändern, periphere Komponenten<br/><br/>
+        """
+        
+        # Show problematic high coupling classes with details
+        if high_coupling_classes:
+            coupling_text += "<b>⚠️ Problematische Klassen (hohe Kopplung):</b><br/>"
+            for class_key in high_coupling_classes[:5]:  # Show top 5
+                class_name = class_key.split(':')[-1] if ':' in class_key else class_key
+                class_details = coupling_details.get(class_key, {})
+                
+                afferent = class_details.get('afferent_coupling', 0)
+                efferent = class_details.get('efferent_coupling', 0)
+                instability = class_details.get('instability', 0)
+                total_deps = class_details.get('total_dependencies', 0)
+                
+                coupling_text += f"• <b>{class_name}:</b><br/>"
+                coupling_text += f"  📊 Instabilität: {instability:.3f}<br/>"
+                coupling_text += f"  📥 Eingehende Abhängigkeiten: {afferent}<br/>"
+                coupling_text += f"  📤 Ausgehende Abhängigkeiten: {efferent}<br/>"
+                coupling_text += f"  🔗 Gesamt-Abhängigkeiten: {total_deps}<br/><br/>"
+            
+            if len(high_coupling_classes) > 5:
+                coupling_text += f"• ... und {len(high_coupling_classes) - 5} weitere problematische Klassen<br/><br/>"
+        else:
+            coupling_text += "<b>✅ Keine kritisch hoch gekoppelten Klassen gefunden</b><br/><br/>"
+        
+        # Add coupling recommendations
+        if coupling_score < 6:
+            coupling_text += """
+            <b>💡 Kopplungs-Reduktions-Strategien:</b><br/>
+            • <b>Dependency Injection:</b> Direkte Abhängigkeiten durch Interfaces ersetzen<br/>
+            • <b>Event-Driven Architecture:</b> Lose Kopplung durch Events implementieren<br/>
+            • <b>Facade Pattern:</b> Komplexe Subsysteme hinter einfachen Interfaces verstecken<br/>
+            • <b>Layer Separation:</b> Klare Architektursschichten definieren und einhalten<br/><br/>
+            
+            <b>🎯 Priorisierung:</b> Beginnen Sie mit den Klassen mit der höchsten Kopplung<br/>
+            <b>📈 Erwartete Verbesserung:</b> -20% Kopplungsmetriken pro Refactoring-Sprint
+            """
+        
+        story.append(Paragraph(coupling_text, self.styles['Normal']))
+        story.append(Spacer(1, 15))
+    
+    def _add_technical_debt_section(self, story, architecture_metrics):
+        """Add technical debt and refactoring section"""
+        technical_debt = architecture_metrics.get('technical_debt', {})
+        refactoring_priorities = architecture_metrics.get('refactoring_priorities', [])
+        recommendations = architecture_metrics.get('recommendations', [])
+        
+        story.append(Paragraph("🛠️ Technische Schulden & Refactoring", self.styles['CustomHeading1']))
+        story.append(Spacer(1, 8))
+        
+        debt_text = f"""
+        <b>Geschätzte Technische Schulden:</b> {technical_debt.get('total_debt_hours', 0)} Stunden<br/>
+        <b>Kritische Probleme:</b> {technical_debt.get('critical_issues', 0)}<br/>
+        <b>Schulden-Ratio:</b> {technical_debt.get('debt_ratio', 0):.1%}<br/><br/>
+        
+        <b>🎯 Refactoring Prioritäten:</b><br/>
+        """
+        
+        if refactoring_priorities:
+            for priority in refactoring_priorities[:5]:  # Show top 5
+                class_name = priority.get('class', 'Unknown')
+                priority_level = priority.get('priority', 'Medium')
+                reason = priority.get('reason', 'Code improvement needed')
+                debt_text += f"• <b>{class_name}</b> ({priority_level}): {reason}<br/>"
+        else:
+            debt_text += "• Keine kritischen Refactoring-Prioritäten identifiziert<br/>"
+        
+        debt_text += "<br/><b>📋 Architektur-Empfehlungen:</b><br/>"
+        
+        if recommendations:
+            for rec in recommendations[:3]:  # Show top 3
+                category = rec.get('category', 'General')
+                description = rec.get('description', 'Improvement needed')
+                debt_text += f"• <b>{category}:</b> {description}<br/>"
+        else:
+            debt_text += "• Architektur-Qualität ist zufriedenstellend<br/>"
+        
+        story.append(Paragraph(debt_text, self.styles['Normal']))
+        story.append(Spacer(1, 15))
 
     def _add_dependencies_analysis(self, story, analysis_result):
         """Add detailed dependencies analysis section with specific packages"""
@@ -1568,7 +1850,11 @@ class PDFService:
         """Get detailed security summary with Bandit results"""
         technical_metrics = analysis_result.get('technical_metrics', {})
         security_vulns = technical_metrics.get('security_vulnerabilities', 0)
-        vulnerable_deps = technical_metrics.get('vulnerable_dependencies', 0)
+        
+        # Handle vulnerable_dependencies - can be count (int) or list
+        vulnerable_deps_raw = technical_metrics.get('vulnerable_dependencies', 0)
+        vulnerable_deps = len(vulnerable_deps_raw) if isinstance(vulnerable_deps_raw, list) else (vulnerable_deps_raw or 0)
+        
         outdated_deps = technical_metrics.get('dependencies_outdated', 0)
         
         if security_vulns == 0 and vulnerable_deps == 0:
@@ -2339,20 +2625,45 @@ class PDFService:
         return weights
 
     def _calculate_concrete_scores(self, quality_breakdown, analysis_result):
-        """Calculate scores using concrete, measurable metrics from research"""
+        """Calculate scores using ONLY real static analysis data - NO MOCK VALUES"""
         
-        # Get analysis data
+        # STRICT: Only use real analysis data
         repo_overview = analysis_result.get('repository_overview', {})
-        security_analysis = analysis_result.get('technical_metrics', {})
-        ai_insights = analysis_result.get('ai_insights', {})
+        technical_metrics = analysis_result.get('technical_metrics', {})
         
-        # Extract concrete metrics
-        lines_of_code = repo_overview.get('lines_of_code', 0)
-        total_files = repo_overview.get('total_files', 0)
+        # Validate required data exists
+        if not repo_overview or not technical_metrics:
+            logger.error("Missing required analysis data - cannot calculate scores without real metrics")
+            raise ValueError("Real analysis data required - no fallback scores allowed")
+        
+        # Extract REAL metrics only - fail if missing
+        lines_of_code = repo_overview.get('lines_of_code')
+        total_files = repo_overview.get('total_files')
         languages = repo_overview.get('languages', [])
-        vulnerabilities = security_analysis.get('security_vulnerabilities', 0)
-        outdated_deps = security_analysis.get('dependencies_outdated', 0)
-        vulnerable_deps = security_analysis.get('vulnerable_dependencies', 0)
+        
+        # Get REAL complexity data from static analysis
+        complexity_data = technical_metrics.get('complexity_metrics', {})
+        real_avg_complexity = complexity_data.get('average_complexity')
+        real_high_complexity = complexity_data.get('high_complexity_count', 0)
+        
+        # Get REAL security data from Bandit
+        vulnerabilities = technical_metrics.get('security_vulnerabilities')
+        
+        # Get REAL dependency data from Safety/npm audit
+        outdated_deps = technical_metrics.get('dependencies_outdated', 0)
+        total_deps = technical_metrics.get('dependencies_total', 1)
+        
+        # Handle vulnerable_dependencies - can be count (int) or list
+        vulnerable_deps_raw = technical_metrics.get('vulnerable_dependencies', 0)
+        if isinstance(vulnerable_deps_raw, list):
+            vulnerable_deps = len(vulnerable_deps_raw)
+        else:
+            vulnerable_deps = vulnerable_deps_raw or 0
+        
+        # Validate we have minimum required data
+        if lines_of_code is None or total_files is None or vulnerabilities is None:
+            logger.error("Critical analysis data missing - cannot generate reliable scores")
+            raise ValueError("Essential metrics missing - real data required")
         
         # === 1. ARCHITECTURE & DESIGN ===
         # Based on cyclomatic complexity, coupling, file size (HSBC research)

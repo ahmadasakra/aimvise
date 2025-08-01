@@ -226,14 +226,14 @@ class AnalysisService:
                     "latest_commit": repo_info.get("latest_commit", {})
                 },
                 
-                # Overall Scores (from comprehensive AI analysis)
+                # Overall Scores (ONLY from real analysis - no fallbacks)
                 "overall_scores": {
-                    "overall_quality_score": self._extract_score(comprehensive_analysis, "code_quality.overall_quality_score", 75),
-                    "architecture_score": self._extract_score(comprehensive_analysis, "architecture_analysis.architecture_score", 75),
-                    "code_quality_score": self._extract_score(comprehensive_analysis, "code_quality.overall_quality_score", 80),
-                    "security_score": self._extract_score(comprehensive_analysis, "security_assessment.security_score", 70),
-                    "maintainability_score": self._extract_score(comprehensive_analysis, "code_quality.maintainability_score", 75),
-                    "performance_score": self._extract_score(comprehensive_analysis, "code_quality.performance_score", 80)
+                    "overall_quality_score": self._calculate_real_quality_score(static_results),
+                    "architecture_score": self._calculate_real_architecture_score(static_results, repo_info),
+                    "code_quality_score": self._calculate_real_code_quality_score(static_results),
+                    "security_score": self._calculate_real_security_score(static_results),
+                    "maintainability_score": self._calculate_real_maintainability_score(static_results),
+                    "performance_score": self._calculate_real_performance_score(static_results, repo_info)
                 },
                 
                 # Technical Metrics
@@ -291,11 +291,11 @@ class AnalysisService:
             if repo_service:
                 repo_service.cleanup()
     
-    def _extract_score(self, analysis_result: Dict[str, Any], score_key: str, default: int = 75) -> int:
-        """Extract score from AI analysis result with fallback (supports nested keys)"""
+    def _extract_score(self, analysis_result: Dict[str, Any], score_key: str, default: int = None) -> int:
+        """Extract score from AI analysis result - NO FALLBACK, returns None if no real data"""
         
         if not analysis_result or "error" in analysis_result:
-            return default
+            return None  # No fallback - return None to indicate missing data
         
         # Handle nested keys like "code_quality.overall_quality_score"
         if "." in score_key:
@@ -305,15 +305,178 @@ class AnalysisService:
                 if isinstance(value, dict) and key in value:
                     value = value[key]
                 else:
-                    value = default
+                    return None  # No fallback data
                     break
             score = value
         else:
-            score = analysis_result.get(score_key, default)
+            score = analysis_result.get(score_key)
         
-        # Ensure score is valid integer between 0-100
+        # Only return valid scores, no fallback
         try:
-            score = int(score)
-            return max(0, min(100, score))
+            if score is not None:
+                score = int(score)
+                return max(0, min(100, score))
+            else:
+                return None  # Missing data - no fallback
         except (ValueError, TypeError):
-            return default 
+            return None  # Invalid data - no fallback
+    
+    def _calculate_real_quality_score(self, static_results: Dict[str, Any]) -> int:
+        """Calculate quality score ONLY from real static analysis data"""
+        if not static_results:
+            return None
+            
+        try:
+            score = 100  # Start with perfect score
+            
+            # Real Radon complexity metrics
+            complexity = static_results.get("complexity", {})
+            if complexity:
+                avg_complexity = complexity.get("average_complexity", 0)
+                high_complexity_count = complexity.get("high_complexity_count", 0)
+                very_high_complexity_count = complexity.get("very_high_complexity_count", 0)
+                
+                # Penalize based on real complexity
+                if avg_complexity > 10:
+                    score -= min(30, (avg_complexity - 10) * 3)
+                score -= min(20, high_complexity_count * 2)
+                score -= min(30, very_high_complexity_count * 5)
+            
+            # Real Bandit security vulnerabilities
+            security = static_results.get("security", {})
+            if security:
+                vulns = len(security.get("vulnerabilities", []))
+                score -= min(40, vulns * 8)  # Heavy penalty for security issues
+            
+            # Real code quality issues
+            quality = static_results.get("quality", {})
+            if quality:
+                code_smells = len(quality.get("code_smells", []))
+                score -= min(20, code_smells * 2)
+            
+            return max(0, min(100, int(score)))
+            
+        except Exception as e:
+            logger.error(f"Real quality score calculation failed: {e}")
+            return None
+    
+    def _calculate_real_security_score(self, static_results: Dict[str, Any]) -> int:
+        """Calculate security score ONLY from real Bandit scan results"""
+        if not static_results:
+            return None
+            
+        try:
+            security = static_results.get("security", {})
+            if not security:
+                return None  # No security scan data
+                
+            vulns = security.get("vulnerabilities", [])
+            vuln_count = len(vulns)
+            
+            if vuln_count == 0:
+                return 95  # Excellent security
+            elif vuln_count <= 2:
+                return 80  # Good security with minor issues
+            elif vuln_count <= 5:
+                return 60  # Moderate security concerns
+            elif vuln_count <= 10:
+                return 35  # Significant security issues
+            else:
+                return 15  # Critical security problems
+                
+        except Exception as e:
+            logger.error(f"Real security score calculation failed: {e}")
+            return None
+    
+    def _calculate_real_architecture_score(self, static_results: Dict[str, Any], repo_info: Dict[str, Any]) -> int:
+        """Calculate architecture score from real file metrics"""
+        if not static_results or not repo_info:
+            return None
+            
+        try:
+            score = 70  # Base score
+            
+            # Real file size analysis
+            lines_of_code = repo_info.get("lines_of_code", 0)
+            file_count = repo_info.get("file_count", 1)
+            avg_file_size = lines_of_code / file_count if file_count > 0 else 0
+            
+            # Good file size distribution
+            if 50 <= avg_file_size <= 200:
+                score += 20
+            elif 200 < avg_file_size <= 350:
+                score += 10
+            elif avg_file_size > 500:
+                score -= 20  # Too large files indicate poor architecture
+                
+            # Project structure
+            if file_count > 20 and avg_file_size < 300:
+                score += 10  # Good modularization
+            elif file_count < 5 and lines_of_code > 5000:
+                score -= 15  # Monolithic structure
+                
+            return max(0, min(100, int(score)))
+            
+        except Exception as e:
+            logger.error(f"Real architecture score calculation failed: {e}")
+            return None
+    
+    def _calculate_real_code_quality_score(self, static_results: Dict[str, Any]) -> int:
+        """Calculate code quality from real static analysis"""
+        return self._calculate_real_quality_score(static_results)  # Same calculation
+    
+    def _calculate_real_maintainability_score(self, static_results: Dict[str, Any]) -> int:
+        """Calculate maintainability from real complexity metrics"""
+        if not static_results:
+            return None
+            
+        try:
+            complexity = static_results.get("complexity", {})
+            if not complexity:
+                return None
+                
+            avg_complexity = complexity.get("average_complexity", 0)
+            
+            # Maintainability based on complexity
+            if avg_complexity <= 3:
+                return 90  # Excellent maintainability
+            elif avg_complexity <= 6:
+                return 75  # Good maintainability
+            elif avg_complexity <= 10:
+                return 60  # Moderate maintainability
+            elif avg_complexity <= 15:
+                return 40  # Poor maintainability
+            else:
+                return 20  # Very poor maintainability
+                
+        except Exception as e:
+            logger.error(f"Real maintainability score calculation failed: {e}")
+            return None
+    
+    def _calculate_real_performance_score(self, static_results: Dict[str, Any], repo_info: Dict[str, Any]) -> int:
+        """Calculate performance score from real metrics"""
+        if not static_results or not repo_info:
+            return None
+            
+        try:
+            score = 75  # Base performance score
+            
+            # File size impact on performance
+            lines_of_code = repo_info.get("lines_of_code", 0)
+            if lines_of_code > 100000:
+                score -= 10  # Large codebase performance concerns
+            elif lines_of_code < 10000:
+                score += 10  # Small, likely performant
+                
+            # Complexity impact on performance
+            complexity = static_results.get("complexity", {})
+            if complexity:
+                avg_complexity = complexity.get("average_complexity", 0)
+                if avg_complexity > 10:
+                    score -= min(25, (avg_complexity - 10) * 2)
+                    
+            return max(0, min(100, int(score)))
+            
+        except Exception as e:
+            logger.error(f"Real performance score calculation failed: {e}")
+            return None 

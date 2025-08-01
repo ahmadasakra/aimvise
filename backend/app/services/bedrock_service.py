@@ -82,13 +82,11 @@ class BedrockService:
         
         # INTELLIGENT TOKEN-AWARE ANALYSIS - Passt sich automatisch an Claude's Context-Limits an
         
-        # Definiere verschiedene Konfigurationen (von groß zu klein)
+        # Definiere realistische Konfigurationen (fokussiert und effizient)
         token_attempts = [
-            {"name": "Maximum", "files": 80, "char_limit": 15000},   # Versuch 1: Viele Dateien, lange Snippets
-            {"name": "Large", "files": 60, "char_limit": 12000},     # Versuch 2: Mittlere Anzahl
-            {"name": "Medium", "files": 40, "char_limit": 10000},    # Versuch 3: Konservativ  
-            {"name": "Small", "files": 25, "char_limit": 8000},      # Versuch 4: Sicher
-            {"name": "Minimal", "files": 15, "char_limit": 5000},    # Versuch 5: Minimal aber vollständig
+            {"name": "Standard", "files": 25, "char_limit": 6000},   # Standard: Fokussiert auf wichtige Dateien
+            {"name": "Compact", "files": 15, "char_limit": 4000},    # Kompakt: Kernfunktionen
+            {"name": "Minimal", "files": 10, "char_limit": 3000},    # Minimal: Nur essentielles
         ]
         
         all_formatted_files = None
@@ -113,14 +111,14 @@ ANALYSIERTE DATEIEN ({len(selected_files)} von {len(code_files)} Dateien):
                 # Schätze Token-Anzahl (1 Token ≈ 4 Zeichen)
                 estimated_tokens = self._estimate_tokens(test_content)
                 
-                # Prüfe ob es in Claude's Limit passt (200k tokens, aber wir nutzen 180k als Puffer)
-                if estimated_tokens < 180000:
-                    logger.info(f"✅ Token-Limit OK: {estimated_tokens:,} tokens (< 180,000 limit)")
+                # Prüfe ob es in realistische Limits passt (50k tokens für fokussierte Analyse)
+                if estimated_tokens < 50000:
+                    logger.info(f"✅ Token-Limit OK: {estimated_tokens:,} tokens (< 50,000 limit)")
                     all_formatted_files = test_content
                     successful_config = config
                     break
                 else:
-                    logger.warning(f"⚠️ Zu viele Tokens: {estimated_tokens:,} (> 180,000 limit), versuche nächste Konfiguration...")
+                    logger.warning(f"⚠️ Zu viele Tokens: {estimated_tokens:,} (> 50,000 limit), versuche nächste Konfiguration...")
                     continue
                     
             except Exception as e:
@@ -129,11 +127,11 @@ ANALYSIERTE DATEIEN ({len(selected_files)} von {len(code_files)} Dateien):
         
         # Fallback falls alle Versuche fehlschlagen
         if not all_formatted_files:
-            logger.warning("🚨 Alle Token-Management Versuche fehlgeschlagen, verwende Ultra-Minimal Fallback")
-            # Ultra-minimal: nur die wichtigsten 10 Dateien mit 3000 Zeichen
-            minimal_files = self._select_best_files_adaptive(code_files, 10)
-            all_formatted_files = self._format_code_files_with_limit(minimal_files, 3000)
-            successful_config = {"name": "Ultra-Minimal", "files": 10, "char_limit": 3000}
+            logger.warning("🚨 Fokussiere auf Kernfunktionen, verwende Core-Files Fallback")
+            # Core-Files: nur die wichtigsten 8 Dateien mit 2000 Zeichen
+            minimal_files = self._select_best_files_adaptive(code_files, 8)
+            all_formatted_files = self._format_code_files_with_limit(minimal_files, 2000)
+            successful_config = {"name": "Core-Files", "files": 8, "char_limit": 2000}
         
         logger.info(f"🎯 Finale Konfiguration: {successful_config['name']} - {successful_config['files']} Dateien, {successful_config['char_limit']} Zeichen/Datei")
         
@@ -141,248 +139,95 @@ ANALYSIERTE DATEIEN ({len(selected_files)} von {len(code_files)} Dateien):
         static_summary = self._format_static_analysis_summary(static_results)
         
         prompt = f"""
-Du bist ein erfahrener Software-Architekt und Technologie-Berater, der ein Repository für eine Geschäftsinvestition analysiert.
+Du bist ein erfahrener Software-Architekt, der Code-Analyse-Resultate interpretiert und konkrete, technische Verbesserungsempfehlungen gibt.
 
-REPOSITORY INFORMATIONEN:
+📊 REPOSITORY METRIKEN:
 - Name: {repo_info.get('name', 'Unbekannt')}
-- Programmiersprachen: {', '.join(repo_info.get('languages', []))}
-- Dateien gesamt: {repo_info.get('file_count', 0)}
-- Code-Dateien: {repo_info.get('code_file_count', 0)}
-- Zeilen Code: {repo_info.get('lines_of_code', 0)}
-- Letzter Commit: {repo_info.get('latest_commit', {}).get('message', 'Unbekannt')}
+- Sprachen: {', '.join(repo_info.get('languages', []))}
+- Dateien: {repo_info.get('file_count', 0)} ({repo_info.get('code_file_count', 0)} Code-Dateien)
+- Zeilen: {repo_info.get('lines_of_code', 0)} LOC
 
-STATISCHE ANALYSE ERGEBNISSE:
+🔍 OBJEKTIVE ANALYSE-RESULTATE:
 {static_summary}
 
-CODE-DATEIEN ZUR ANALYSE:
+💻 CODE-STRUKTUR:
 {all_formatted_files}
 
-Bitte erstelle eine SEHR DETAILLIERTE und UMFASSENDE Analyse, die ALLE Aspekte abdeckt. 
+🎯 AUFGABE: Interpretiere die objektiven Metriken und gib konkrete technische Empfehlungen.
 
-⏱️ WICHTIGE ANFORDERUNGEN:
-- Nimm dir AUSREICHEND ZEIT für eine TIEFGREIFENDE Analyse (mindestens 2-3 Minuten)
-- Gib KONKRETE BEISPIELE aus dem tatsächlichen Code mit Dateinamen
-- Erkläre DETAILLIERT warum du bestimmte Bewertungen gibst
-- Verwende SPEZIFISCHE Code-Snippets als Belege
-- Erstelle eine UMFASSENDE Analyse mit mindestens 3000 Wörtern
+📋 ANALYSIERE BASIEREND AUF OBJEKTIVEN DATEN:
 
-🎯 QUALITÄTSBEWERTUNGS-KRITERIEN (Erkläre IMMER warum du eine bestimmte Punktzahl gibst):
+1. ARCHITEKTUR & PATTERNS:
+   - Erkenne verwendete Design Patterns aus dem Code
+   - Bewerte Schichtentrennung und Modularität
+   - Identifiziere Architektur-Stärken/-Schwächen
 
-GESAMT-QUALITÄTSBEWERTUNG (0-100 Punkte) - BEGRÜNDE JEDE BEWERTUNG:
-- Code-Struktur und Organisation (0-20 Punkte): Wie gut ist die Ordnerstruktur, Dateinamen, Modularität?
-- Dokumentation und Kommentare (0-15 Punkte): Gibt es README, Code-Kommentare, API-Docs?
-- Fehlerbehandlung und Robustheit (0-15 Punkte): Try-catch blocks, Validierung, Error-Handling?
-- Performance und Effizienz (0-15 Punkte): Algorithmus-Effizienz, Caching, Optimierungen?
-- Sicherheit und Best Practices (0-15 Punkte): Vulnerabilities, sichere Patterns, OWASP?
-- Wartbarkeit und Erweiterbarkeit (0-10 Punkte): Code-Änderbarkeit, Flexibilität?
-- Testing und Qualitätssicherung (0-10 Punkte): Unit Tests, Integration Tests, Coverage?
+2. CODE QUALITÄT:
+   - Interpretiere Radon Complexity-Resultate
+   - Analysiere Bandit Security-Findings
+   - Bewerte Code-Organisation und Struktur
 
-📊 FÜR JEDE BEWERTUNG (z.B. "68/100") ERKLÄRE:
-- Welche KONKRETEN Kriterien du verwendet hast
-- Warum GENAU diese Punktzahl vergeben wurde  
-- Was FEHLT für eine höhere Bewertung
-- SPEZIFISCHE Verbesserungsschritte mit Dateinamen
+3. TECHNISCHE EMPFEHLUNGEN:
+   - Konkrete Verbesserungsvorschläge mit Dateinamen
+   - Prioritäten basierend auf Impact vs. Aufwand
+   - Messbare Erfolgskriterien für jede Empfehlung
 
-💡 CODE SMELLS - Gib KONKRETE BEISPIELE:
-- Zeige tatsächliche Funktionen/Klassen die zu lang sind (mit Dateinamen)
-- Nenne spezifische Dateien mit wiederholtem Code
-- Identifiziere echte Stellen mit inkonsistenter Fehlerbehandlung
-- Belege ALLE Aussagen mit Dateinamen und Code-Snippets
+⚡ FOKUSSIERTE ANALYSE - NUR DAS WICHTIGSTE:
 
-💰 INVESTMENT RECOMMENDATIONS - Mache sie ACTIONABLE:
-- Genaue Aufgabenbeschreibung mit konkreten Schritten
-- Realistische Zeitschätzung basierend auf Code-Komplexität
-- Konkrete Implementierungsschritte mit Prioritäten
-- Messbare Erfolgskriterien und KPIs
-- ROI-Berechnung mit Zahlen und Business Impact
+1. ARCHITEKTUR-PATTERN ERKENNUNG:
+   - Welches Hauptmuster wird verwendet? (MVC, Layered, Component-based)
+   - Sind Verantwortlichkeiten klar getrennt?
+   - Wo sind die größten Architektur-Schwächen?
 
-🎯 FAZIT-SEKTION (WICHTIG - Am Ende hinzufügen):
-- Zusammenfassung der wichtigsten Erkenntnisse
-- Gesamteinschätzung des Projekts (Investment-Perspektive)
-- Investitionsempfehlung (Empfehlen/Nicht empfehlen/Bedingt empfehlen)
-- Top 3 kritische Verbesserungen mit Priorität
-- Langfristige Roadmap (6-12 Monate)
-- Risiko-Assessment für Business Continuity
+2. SECURITY-FINDINGS INTERPRETATION:
+   - Was bedeuten die Bandit-Resultate konkret?
+   - Welche Vulnerabilities sind am kritischsten?
+   - Konkrete Fix-Empfehlungen mit Dateinamen
 
-Analysiere JEDEN ASPEKT mit KONKRETEN BEISPIELEN:
+3. COMPLEXITY-HOTSPOTS ANALYSE:
+   - Welche Funktionen sind zu komplex (Radon > 10)?
+   - Wo ist Refactoring am dringendsten?
+   - Einfache Verbesserungsschritte
 
-1. ARCHITEKTUR & DESIGN PATTERNS (DETAILLIERT):
-   - Genaues Architektur-Pattern (MVC, MVVM, Clean Architecture, Hexagonal, etc.)
-   - Spezifische Design Patterns im Code (Factory, Singleton, Observer, Strategy, etc.)
-   - Qualität der Schichtentrennung und Kopplungsanalyse
-   - Skalierbarkeits-Engpässe und Möglichkeiten
-   - Wartbarkeits-Probleme und Stärken
-   - Code-Organisation und Modul-Struktur
-   - Dependency Injection und Inversion of Control Nutzung
-   - SOLID Prinzipien Einhaltung
-
-2. TECHNOLOGIE-STACK ANALYSE (UMFASSEND):
-   - Detaillierte Frontend-Technologie Analyse (genaue Versionen, Nutzungsmuster)
-   - Backend-Technologie Tiefenanalyse (Frameworks, Libraries, Patterns)
-   - Datenbank-Design und ORM-Nutzung Analyse
-   - Build-Tools, Bundler und Deployment-Pipeline Bewertung
-   - Package Management und Dependency Analyse
-   - Versions-Aktualität und Sicherheits-Implikationen
-   - Technologie-Auswahl Begründung und Alternativen
-   - Performance-Auswirkungen der Technologie-Entscheidungen
-
-3. CODE QUALITY ASSESSMENT (DEEP DIVE):
-   - Code readability analysis (naming conventions, structure, comments)
-   - Maintainability metrics and technical debt identification
-   - Code smells, anti-patterns, and code duplications
-   - Performance bottlenecks and optimization opportunities
-   - Testing strategy comprehensiveness (unit, integration, e2e)
-   - Test coverage analysis and quality assessment
-   - Documentation quality and completeness
-   - Error handling consistency and robustness
-   - Logging and monitoring implementation
-   - Code review process indicators
-
-4. SECURITY ANALYSIS (COMPREHENSIVE):
-   - Detailed vulnerability assessment and risk analysis
-   - Authentication and authorization implementation review
-   - Data protection and encryption analysis
-   - Input validation and sanitization review
-   - API security and rate limiting assessment
-   - Dependency security analysis
-   - Compliance requirements (GDPR, OWASP, etc.)
-   - Security best practices implementation
-   - Secrets management and configuration security
-
-5. BUSINESS IMPACT ANALYSIS (DETAILED):
-   - Comprehensive technical debt assessment with time estimates
-   - Development velocity analysis and improvement opportunities
-   - Detailed maintenance cost projections
-   - Scalability analysis and growth potential
-   - Risk assessment for business continuity
-   - ROI analysis for proposed improvements
-   - Market competitiveness assessment
-   - Time-to-market implications
-
-6. ENVIRONMENT & DEPLOYMENT STRATEGY (COMPREHENSIVE):
-   - Development, staging, production environment analysis
-   - CI/CD pipeline quality and automation level
-   - Infrastructure as code implementation
-   - Containerization and orchestration assessment
-   - Monitoring, logging, and observability setup
-   - Backup and disaster recovery strategies
-   - Performance monitoring and alerting
-   - Deployment frequency and rollback capabilities
-
-7. TEAM & PROCESS INSIGHTS (DETAILED):
-   - Git workflow and branching strategy analysis
-   - Code review process quality and consistency
-   - Commit patterns and development practices
-   - Bug fix frequency and resolution time analysis
-   - Development team collaboration indicators
-   - Knowledge sharing and documentation practices
-   - Release management and versioning strategy
-
-8. DEAD CODE & TECHNICAL DEBT (COMPREHENSIVE):
-   - Unused code identification and cleanup opportunities
-   - Technical debt hotspots with priority ranking
-   - Code duplication analysis and consolidation opportunities
-   - Refactoring opportunities with effort estimates
-   - Legacy code migration assessment
-   - Performance debt identification
-   - Architectural debt analysis
-
-Gib deine Analyse im folgenden JSON-Format aus (Antwort auf DEUTSCH):
+📋 STRUKTURIERTE ANTWORT im JSON-Format (auf DEUTSCH):
 
 {{
     "architecture_analysis": {{
-        "pattern": "Architektur-Pattern Name auf Deutsch",
-        "design_patterns": ["Liste der Design Patterns auf Deutsch"],
-        "layer_separation": "Beschreibung der Schichtentrennung auf Deutsch",
-        "scalability_score": 0-100,
-        "maintainability_score": 0-100,
+        "pattern": "Hauptarchitektur-Pattern (z.B. MVC, Layered)",
+        "design_patterns": ["Erkannte Design Patterns"],
+        "layer_separation": "Bewertung der Schichtentrennung",
         "architecture_score": 0-100
     }},
     "technology_stack": {{
-        "frontend": ["list"],
-        "backend": ["list"],
-        "database": ["list"],
-        "build_tools": ["list"],
-        "deployment": ["list"],
-        "testing": ["list"],
-        "monitoring": ["list"],
+        "frontend": ["Frontend-Technologien"],
+        "backend": ["Backend-Technologien"],
         "modern": true/false,
-        "outdated_components": ["list"],
-        "version_analysis": "string",
-        "dependency_health": "string"
+        "outdated_components": ["Veraltete Komponenten"]
     }},
     "code_quality": {{
         "readability_score": 0-100,
-        "maintainability_score": 0-100,
         "performance_score": 0-100,
-        "testability_score": 0-100,
-        "error_handling_score": 0-100,
         "overall_quality_score": 0-100,
-        "code_smells": ["list"],
-        "best_practices_violations": ["list"],
-        "performance_issues": ["list"],
-        "refactoring_suggestions": ["list"]
+        "code_smells": ["Konkrete Code-Probleme mit Dateinamen"],
+        "refactoring_suggestions": ["Konkrete Verbesserungsvorschläge"]
     }},
     "security_assessment": {{
         "security_score": 0-100,
         "risk_level": "low/medium/high",
-        "vulnerabilities": ["list"],
-        "security_strengths": ["list"],
-        "security_weaknesses": ["list"],
-        "compliance_issues": ["list"],
-        "recommendations": ["list"]
+        "vulnerabilities": ["Bandit-Findings erklärt"],
+        "recommendations": ["Konkrete Security-Fixes"]
     }},
-    "business_impact": {{
-        "technical_debt_hours": 0,
-        "development_velocity": "low/medium/high",
-        "risk_level": "low/medium/high",
-        "roi_opportunities": ["list"],
-        "maintenance_cost_estimate": "string",
-        "scalability_potential": "low/medium/high"
-    }},
-    "environment_strategy": {{
-        "development": "string",
-        "staging": "string",
-        "production": "string",
-        "deployment_pipeline": "string",
-        "infrastructure": "string"
-    }},
-    "team_insights": {{
-        "branch_strategy": "string",
-        "code_review_process": "string",
-        "bugfix_frequency": "string",
-        "development_practices": "string"
-    }},
-    "technical_debt": {{
-        "dead_code_analysis": "string",
-        "technical_debt_analysis": "string",
-        "migration_effort": "string"
-    }},
-    "strengths": ["list"],
-    "weaknesses": ["list"],
-    "recommendations": ["list"],
-    "investment_recommendations": [
-        {{
-            "priority": 1-5,
-            "task": "string",
-            "effort_hours": 0,
-            "business_value": "low/medium/high",
-            "description": "string",
-            "expected_roi": "string",
-            "risk_if_not_done": "string"
-        }}
-    ],
-    "risk_assessment": {{
-        "security_risks": ["list"],
-        "maintenance_risks": ["list"],
-        "scalability_risks": ["list"],
-        "technology_risks": ["list"],
-        "business_continuity_risks": ["list"]
-    }},
-    "executive_summary": "string"
+    "strengths": ["Hauptstärken des Codes"],
+    "weaknesses": ["Hauptschwächen des Codes"],
+    "recommendations": ["Top 3 technische Empfehlungen mit Dateinamen"]
 }}
 
-Sei gründlich und liefere spezifische, umsetzbare Erkenntnisse basierend auf dem tatsächlichen Code und der Repository-Struktur. 
+🎯 SCORING GUIDELINES für konsistente Bewertungen:
+- Architecture Score: 90-100 (Clean patterns, SOLID principles), 70-89 (Good structure, minor issues), 50-69 (Mixed quality), <50 (Major problems)
+- Code Quality Score: 90-100 (Clean, well-documented), 70-89 (Good practices, some smells), 50-69 (Needs improvement), <50 (Technical debt)
+- Security Score: 90-100 (No vulnerabilities), 70-89 (Minor issues), 50-69 (Several vulnerabilities), <50 (Critical security risks)
+
+Fokussiere auf konkrete, technische Empfehlungen basierend auf den objektiven Metriken. 
 
 WICHTIG: Antworte komplett auf DEUTSCH. Alle Beschreibungen, Empfehlungen und Analysen sollen in deutscher Sprache verfasst werden.
 """
@@ -640,13 +485,13 @@ WICHTIG: Antworte komplett auf DEUTSCH. Alle Beschreibungen, Empfehlungen und An
             "executive_summary": "Comprehensive analysis completed with fallback data due to AI service issues. Repository shows standard development practices with room for improvement in testing and documentation."
         }
     
-    async def _call_claude(self, prompt: str, max_tokens: int = 15000) -> str:
+    async def _call_claude(self, prompt: str, max_tokens: int = 4000) -> str:
         """
-        Make API call to Claude via Bedrock - Increased tokens for comprehensive analysis
+        Make API call to Claude via Bedrock - Focused, efficient analysis
         
         Args:
             prompt: The prompt to send
-            max_tokens: Maximum tokens in response (increased for detailed analysis)
+            max_tokens: Maximum tokens in response (focused for key insights)
             
         Returns:
             Claude's response text
